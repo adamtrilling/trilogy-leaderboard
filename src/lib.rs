@@ -1,56 +1,26 @@
 #[macro_use]
 extern crate seed;
 
+pub mod model;
+
 use futures::Future;
+use futures::future::join_all;
 
 use seed::prelude::*;
 use seed::{fetch, Request};
-use serde::Deserialize;
+
+use model::Leaderboard;
 
 // Model
-#[derive(Clone, Debug, Deserialize)]
-struct Leaderboard {
-    data: LeaderboardData,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct LeaderboardData {
-    runs: Vec<Run>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Run {
-    run: RunData,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct RunData {
-    players: Vec<Player>,
-    times: TimeData,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct Player {
-    id: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct TimeData {
-    primary_t: u32,
-}
 
 struct Model {
-    z1: Option<Leaderboard>,
-    z2: Option<Leaderboard>,
-    z3: Option<Leaderboard>,
+    leaderboards: Vec<Leaderboard>
 }
 
 impl Default for Model {
     fn default() -> Self {
         Self {
-            z1: None,
-            z2: None,
-            z3: None,
+            leaderboards: Vec::new()
         }
     }
 }
@@ -65,9 +35,14 @@ enum Msg {
 }
 
 fn fetch_data() -> impl Future<Item = Msg, Error = Msg> {
-    let url = "https://www.speedrun.com/api/v1/leaderboards/369p0g1l/category/wdmw952q";
-    seed::log!("fetching data from", url);
-    Request::new(url.into()).fetch_json_data(Msg::DataFetched)
+    let urls = vec![
+        "https://www.speedrun.com/api/v1/leaderboards/369p0g1l/category/wdmw952q",
+        "https://www.speedrun.com/api/v1/leaderboards/pd0wk21e/category/9d86o62n",
+        "https://www.speedrun.com/api/v1/leaderboards/9d3rr0dl/category/wk6jz5rd"
+    ];
+    let reqs = join_all(urls.iter().map(|&url| 
+        Request::new(url.into()).fetch_json_data(Msg::DataFetched)
+    ).collect());
 }
 
 fn update(msg: Msg, model: &mut Model, orders: &mut Orders<Msg>) {
@@ -76,7 +51,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut Orders<Msg>) {
         Msg::FetchData => {
             orders.skip().perform_cmd(fetch_data());
         }
-        Msg::DataFetched(Ok(leaderboard)) => model.z1 = Some(leaderboard),
+        Msg::DataFetched(Ok(leaderboard)) => model.leaderboards.push(leaderboard),
         Msg::DataFetched(Err(_)) => {}
     }
 }
@@ -87,7 +62,7 @@ fn update(msg: Msg, model: &mut Model, orders: &mut Orders<Msg>) {
 fn view(model: &Model) -> El<Msg> {
     button![
         simple_ev(Ev::Click, Msg::FetchData),
-        format!("Hello, World × {:?}", 7)
+        format!("Hello, World × {:?}", model.leaderboards)
     ]
 }
 
